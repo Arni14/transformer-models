@@ -4,6 +4,7 @@ import argparse
 
 from transformer_models.transformer_blocks.positional_encoding import PositionalEncoding
 from transformer_models.transformer_blocks.layer_norm import LayerNorm
+from transformer_models.transformer_blocks.attention import SingleHeadAttention
 
 
 def parse_arguments(args):
@@ -12,12 +13,20 @@ def parse_arguments(args):
 
     parser.add_argument(
         '--device', required=True, help='Device on which to run computation', default="cpu",
-        choices=('cpu', 'cuda', 'mps'))
+        choices=(
+            'cpu',
+            'cuda',
+            'mps'))
 
     parser.add_argument(
         '--block', required=True, help="Which transformer block would you like to test?",
-        choices=('PositionalEncoding', 'LayerNorm', 'Attention', 'Decoder', 'Encoder')
-    )
+        choices=(
+            'PositionalEncoding',
+            'LayerNorm',
+            'SingleHeadAttention',
+            'MultiHeadAttention',
+            'Decoder',
+            'Encoder'))
 
     return vars(parser.parse_args(args))
 
@@ -49,8 +58,8 @@ def main(args):
     device = torch.device(arguments['device'])
     block = arguments['block']
 
-    batch_size = 2
-    seq_len = 3
+    batch_size = 1
+    seq_len = 2
     d_model = 4
 
     dataset = get_dataset(batch_size, seq_len, d_model, device)
@@ -77,7 +86,7 @@ def main(args):
 
         # Testing out LayerNorm
 
-        print(f"Testing out Layer Normalization")
+        print("Testing out Layer Normalization")
         layer_norm = LayerNorm(d_model).to(device)
 
         print(f"Gamma Vector: {layer_norm.gamma_vector}")
@@ -85,6 +94,21 @@ def main(args):
 
         layer_norm_output = layer_norm(dataset)
         print(f"After Layer Normalization: {layer_norm_output}")
+
+    elif block == "SingleHeadAttention":
+
+        # Testing out SingleHeadAttention
+
+        print("Testing out Single Head Attention")
+        single_head_attention = SingleHeadAttention(d_model, d_model, d_model, d_model).to(device)
+
+        single_head_attention.eval()
+        print(f"Query Matrix: {single_head_attention.query_mapper(dataset)}")
+        print(f"Key Matrix: {single_head_attention.key_mapper(dataset)}")
+        print(f"Value Matrix: {single_head_attention.value_mapper(dataset)}")
+
+        attention_output = single_head_attention(dataset)
+        print(f"After Single Head Attention: {attention_output}")
 
     else:
 
