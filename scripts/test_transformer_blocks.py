@@ -4,7 +4,14 @@ import argparse
 
 from transformer_models.transformer_blocks.positional_encoding import PositionalEncoding
 from transformer_models.transformer_blocks.layer_norm import LayerNorm
+
 from transformer_models.transformer_blocks.attention import SingleHeadAttention
+from transformer_models.transformer_blocks.attention import MultiHeadAttention
+
+from transformer_models.transformer_blocks.attention import AttentionUtilities
+
+from os import path
+sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 
 
 def parse_arguments(args):
@@ -25,6 +32,7 @@ def parse_arguments(args):
             'LayerNorm',
             'SingleHeadAttention',
             'MultiHeadAttention',
+            'MaskedMultiHeadAttention',
             'Decoder',
             'Encoder'))
 
@@ -59,8 +67,8 @@ def main(args):
     block = arguments['block']
 
     batch_size = 1
-    seq_len = 2
-    d_model = 4
+    seq_len = 10
+    d_model = 512
 
     dataset = get_dataset(batch_size, seq_len, d_model, device)
 
@@ -109,6 +117,41 @@ def main(args):
 
         attention_output = single_head_attention(dataset)
         print(f"After Single Head Attention: {attention_output}")
+
+    elif block == "MultiHeadAttention":
+
+        # Testing out MultiHeadAttention
+
+        print("Testing out Multi Head Attention")
+        multi_head_attention = MultiHeadAttention(d_model, 8, d_model, d_model, dropout=0).to(device)
+
+        multi_head_attention.eval()
+        print(f"Query Matrix: {multi_head_attention.query_mapper(dataset)}")
+        print(f"Key Matrix: {multi_head_attention.key_mapper(dataset)}")
+        print(f"Value Matrix: {multi_head_attention.value_mapper(dataset)}")
+
+        attention_output = multi_head_attention(dataset)
+        print(f"After Multi Head Attention: {attention_output}")
+        print(f"Shape of Multi Head Attention Output: {attention_output.shape}")
+
+        from torch.utils.tensorboard import SummaryWriter
+
+        writer = SummaryWriter("../torchlogs/")
+        writer.add_graph(multi_head_attention, dataset)
+        writer.close()
+
+    elif block == "MaskedMultiHeadAttention":
+
+        # Testing out MultiHeadAttention
+
+        print("Testing out Multi Head Attention")
+        multi_head_attention = MultiHeadAttention(d_model, 8, d_model, d_model, dropout=0).to(device)
+
+        multi_head_attention.eval()
+        attention_output = multi_head_attention(dataset, mask=True)
+
+        print(f"After Multi Head Attention: {attention_output}")
+        print(f"Shape of Multi Head Attention Output: {attention_output.shape}")
 
     else:
 
