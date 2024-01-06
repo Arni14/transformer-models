@@ -8,9 +8,6 @@ here = os.path.abspath(os.path.dirname(__file__))
 readme_content = open(os.path.join(here, 'README.md')).read()
 
 
-exclude_dirs = ['ez_setup', 'test', 'build']
-
-
 def find_version(basedir):
     with open(os.path.join(basedir, 'version')) as f:
         return f.readline()

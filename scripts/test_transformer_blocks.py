@@ -8,10 +8,10 @@ from transformer_models.transformer_blocks.layer_norm import LayerNorm
 from transformer_models.transformer_blocks.attention import SingleHeadAttention
 from transformer_models.transformer_blocks.attention import MultiHeadAttention
 
-from transformer_models.transformer_blocks.attention import AttentionUtilities
+from transformer_models.transformer_blocks.encoder import EncoderBlock
+from transformer_models.transformer_blocks.encoder import Encoder
 
-from os import path
-sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+from transformer_models.transformer_blocks.decoder import Decoder
 
 
 def parse_arguments(args):
@@ -19,7 +19,7 @@ def parse_arguments(args):
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        '--device', required=True, help='Device on which to run computation', default="cpu",
+        '--device', help='Device on which to run computation', default="cpu",
         choices=(
             'cpu',
             'cuda',
@@ -34,7 +34,11 @@ def parse_arguments(args):
             'MultiHeadAttention',
             'MaskedMultiHeadAttention',
             'Decoder',
-            'Encoder'))
+            'Encoder',
+            'EncoderBlock'))
+
+    parser.add_argument(
+        '--tensorboard', help="Write Tensor Event to torchlogs", action='store_true')
 
     return vars(parser.parse_args(args))
 
@@ -59,16 +63,27 @@ def get_dataset(batch_size: int, seq_len: int, d_model: int, device: torch.devic
     return input_data
 
 
+def get_encoding(batch_size: int, seq_len: int, d_model: int, device: torch.device) -> torch.Tensor:
+
+    # Input data dimensions: (batch_size, seq_len, d_model)
+    encoding = torch \
+        .ones((batch_size, seq_len, d_model)) \
+        .to(device)
+
+    return encoding
+
+
 def main(args):
 
     arguments = parse_arguments(args)
 
     device = torch.device(arguments['device'])
     block = arguments['block']
+    write_tensorboard = arguments['tensorboard']
 
     batch_size = 1
-    seq_len = 10
-    d_model = 512
+    seq_len = 2
+    d_model = 4
 
     dataset = get_dataset(batch_size, seq_len, d_model, device)
 
@@ -81,11 +96,11 @@ def main(args):
         # Testing out the Positional Encoding
 
         print("Testing out Positional Embeddings")
-        positional_encoder = PositionalEncoding(0, d_model, seq_len).to(device)
+        model = PositionalEncoding(0, d_model, seq_len).to(device)
 
-        print(f"Position Embedding Mask: {positional_encoder.positional_encoding_mask}")
+        print(f"Position Embedding Mask: {model.positional_encoding_mask}")
 
-        positional_context_embedding = positional_encoder(dataset)
+        positional_context_embedding = model(dataset)
         print(f"After Positional Embedding: {positional_context_embedding}")
 
     # Testing out Layer Normalization
@@ -95,12 +110,12 @@ def main(args):
         # Testing out LayerNorm
 
         print("Testing out Layer Normalization")
-        layer_norm = LayerNorm(d_model).to(device)
+        model = LayerNorm(d_model).to(device)
 
-        print(f"Gamma Vector: {layer_norm.gamma_vector}")
-        print(f"Beta Vector: {layer_norm.beta_vector}")
+        print(f"Gamma Vector: {model.gamma_vector}")
+        print(f"Beta Vector: {model.beta_vector}")
 
-        layer_norm_output = layer_norm(dataset)
+        layer_norm_output = model(dataset)
         print(f"After Layer Normalization: {layer_norm_output}")
 
     elif block == "SingleHeadAttention":
@@ -108,14 +123,14 @@ def main(args):
         # Testing out SingleHeadAttention
 
         print("Testing out Single Head Attention")
-        single_head_attention = SingleHeadAttention(d_model, d_model, d_model, d_model).to(device)
+        model = SingleHeadAttention(d_model, d_model, d_model, d_model).to(device)
 
-        single_head_attention.eval()
-        print(f"Query Matrix: {single_head_attention.query_mapper(dataset)}")
-        print(f"Key Matrix: {single_head_attention.key_mapper(dataset)}")
-        print(f"Value Matrix: {single_head_attention.value_mapper(dataset)}")
+        model.eval()
+        print(f"Query Matrix: {model.query_mapper(dataset)}")
+        print(f"Key Matrix: {model.key_mapper(dataset)}")
+        print(f"Value Matrix: {model.value_mapper(dataset)}")
 
-        attention_output = single_head_attention(dataset)
+        attention_output = model(dataset)
         print(f"After Single Head Attention: {attention_output}")
 
     elif block == "MultiHeadAttention":
@@ -123,39 +138,87 @@ def main(args):
         # Testing out MultiHeadAttention
 
         print("Testing out Multi Head Attention")
-        multi_head_attention = MultiHeadAttention(d_model, 8, d_model, d_model, dropout=0).to(device)
+        model = MultiHeadAttention(
+            d_model, 0, num_heads=8, key_dimension=d_model, value_dimension=d_model, masked=False).to(device)
 
-        multi_head_attention.eval()
-        print(f"Query Matrix: {multi_head_attention.query_mapper(dataset)}")
-        print(f"Key Matrix: {multi_head_attention.key_mapper(dataset)}")
-        print(f"Value Matrix: {multi_head_attention.value_mapper(dataset)}")
+        model.eval()
+        print(f"Query Matrix: {model.query_mapper(dataset)}")
+        print(f"Key Matrix: {model.key_mapper(dataset)}")
+        print(f"Value Matrix: {model.value_mapper(dataset)}")
 
-        attention_output = multi_head_attention(dataset)
+        attention_output = model(dataset)
         print(f"After Multi Head Attention: {attention_output}")
         print(f"Shape of Multi Head Attention Output: {attention_output.shape}")
-
-        from torch.utils.tensorboard import SummaryWriter
-
-        writer = SummaryWriter("../torchlogs/")
-        writer.add_graph(multi_head_attention, dataset)
-        writer.close()
 
     elif block == "MaskedMultiHeadAttention":
 
         # Testing out MultiHeadAttention
 
         print("Testing out Multi Head Attention")
-        multi_head_attention = MultiHeadAttention(d_model, 8, d_model, d_model, dropout=0).to(device)
+        model = MultiHeadAttention(
+            d_model, 0, num_heads=8, key_dimension=d_model, value_dimension=d_model, masked=True).to(device)
 
-        multi_head_attention.eval()
-        attention_output = multi_head_attention(dataset, mask=True)
+        model.eval()
+        attention_output = model(dataset)
 
         print(f"After Multi Head Attention: {attention_output}")
         print(f"Shape of Multi Head Attention Output: {attention_output.shape}")
 
+    elif block == "EncoderBlock":
+
+        # Testing out EncoderBlock
+
+        print("Testing out Encoder Block")
+        model = EncoderBlock(d_model, 4, 64).to(device)
+
+        model.eval()
+        encoder_output = model(dataset)
+
+        print(f"After Encoder Block: {encoder_output}")
+        print(f"Shape of Encoder Output: {encoder_output.shape}")
+
+    elif block == "Encoder":
+
+        # Testing out Encoder
+
+        print("Testing out Encoder")
+        model = Encoder(d_model, 4, 64, 6).to(device)
+
+        model.eval()
+        encoder_output = model(dataset)
+
+        print(f"After Encoder Block: {encoder_output}")
+        print(f"Shape of Encoder Output: {encoder_output.shape}")
+
+    elif block == "Decoder":
+
+        # Testing out Decoder
+
+        print("Testing out Decoder")
+        model = Decoder(d_model, 2, 8, 2).to(device)
+
+        # Let's create a dummy encoding
+
+        encoding = get_encoding(batch_size, seq_len, d_model, device)
+
+        model.eval()
+        decoder_output = model(dataset, encoding=encoding)
+
+        print(f"After Encoder Block: {decoder_output}")
+        print(f"Shape of Encoder Output: {decoder_output.shape}")
+
     else:
 
+        model = None
         print(f"Block {block} is not a block that has yet been implemented.")
+
+    if model is not None and write_tensorboard:
+
+        from torch.utils.tensorboard import SummaryWriter
+
+        writer = SummaryWriter("../torchlogs/")
+        writer.add_graph(model, dataset)
+        writer.close()
 
 
 if __name__ == '__main__':

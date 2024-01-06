@@ -2,6 +2,8 @@ import torch
 from torch import nn
 import numpy as np
 
+from transformer_models.transformer_blocks.sub_layer import SubLayer
+
 # Input: Output of Previous Layer (batch_size, seq_len, d_model) = (# Samples, n, d_model)
 # Output: Output of Single Head Attention (batch_size, seq_len, d_model) = (# Samples, n, d_model)
 
@@ -21,8 +23,8 @@ class AttentionUtilities:
 
         # If we are masking, then we can simply create a mask of the upper triangular matrix, and set it to -BIG
         if mask:
-            upper_triangular_mask: torch.Tensor = torch.BoolTensor(
-                torch.triu(torch.ones_like(scores), diagonal=1) > 0)
+
+            upper_triangular_mask: torch.Tensor = torch.triu(torch.ones_like(scores), diagonal=1) > 0
             scores = torch.masked_fill(scores, upper_triangular_mask, -1e9)
 
         # Compute the softmax scores for the attention scores
@@ -89,7 +91,7 @@ class SingleHeadAttention(nn.Module):
         return self.dropout(attention)
 
 
-class MultiHeadAttention(nn.Module):
+class MultiHeadAttention(SubLayer):
     """
     As an exercise to better understand Attention mechanisms, we first implement the
     single-head attention mechanism. Here, we have three simple matrices which we will
@@ -103,8 +105,17 @@ class MultiHeadAttention(nn.Module):
     Output = MatMul(Softmax(Attention), Values)
     """
 
-    def __init__(self, d_model: int, num_heads: int, key_dimension: int, value_dimension: int, dropout: float = 0.1):
-        super(MultiHeadAttention, self).__init__()
+    def __init__(self, d_model: int, dropout: float = 0.1, **kwargs):
+        super(MultiHeadAttention, self).__init__(d_model, dropout, **kwargs)
+
+        # Grab the required configs from kwargs
+        num_heads = kwargs['num_heads']
+        key_dimension = kwargs['key_dimension']
+        value_dimension = kwargs['value_dimension']
+        masked = kwargs['masked']
+
+        # Is it masked attention?
+        self.masked = masked
 
         # Store the projected key dimension for the attention computation, which is reduced for more than 1 head
         self.projected_key_dimension = d_model // num_heads  # d_k,proj
@@ -143,11 +154,18 @@ class MultiHeadAttention(nn.Module):
         # After the projection, we'll optionally run dropout
         self.dropout = nn.Dropout(p=dropout)
 
-    def forward(self, x, mask: bool = False):
+    def forward(self, x, **kwargs):
 
-        # Extract the initial single-head K, Q, and V
+        encoding = kwargs.get('encoding')
 
-        Q, K, V = self.query_mapper(x), self.key_mapper(x), self.value_mapper(x)
+        # In any case, we will map the input to a query matrix
+
+        Q = self.query_mapper(x)
+
+        # For K and V, if it is cross attention, we will use an inputted key and an inputted value
+
+        K = self.key_mapper(x) if encoding is None else self.key_mapper(encoding)
+        V = self.value_mapper(x) if encoding is None else self.value_mapper(encoding)
 
         # Once we have computed these, we need to project each one of them down
 
@@ -155,7 +173,7 @@ class MultiHeadAttention(nn.Module):
             AttentionUtilities.attention_operation(
                 self.projected_query_mappers[i](Q),
                 self.projected_key_mappers[i](K),
-                self.projected_value_mappers[i](V), mask)
+                self.projected_value_mappers[i](V), self.masked)
             for i in range(self.num_heads)
         ], dim=2)
 
