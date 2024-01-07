@@ -21,7 +21,7 @@ class PositionalEncoding(nn.Module):
     input to this layer. Finally, once we do this addition, we will apply dropout to the
     """
 
-    def __init__(self, dropout_probability: float, d_model: int, max_sequence_length: int):
+    def __init__(self, dropout_probability: float, d_model: int, max_sequence_length: int = 500):
         super(PositionalEncoding, self).__init__()
 
         # A dropout layer to apply after doing embeddings + positional encoding
@@ -50,4 +50,5 @@ class PositionalEncoding(nn.Module):
         return mask
 
     def forward(self, x):
-        return self.dropout_layer(x + self.positional_encoding_mask)
+        num_tokens = x.shape[1]
+        return self.dropout_layer(x + self.positional_encoding_mask[:num_tokens, :])

@@ -13,6 +13,8 @@ from transformer_models.transformer_blocks.encoder import Encoder
 
 from transformer_models.transformer_blocks.decoder import Decoder
 
+from transformer_models.transformer_blocks.transformer_model import TransformerModel
+
 
 def parse_arguments(args):
 
@@ -35,7 +37,8 @@ def parse_arguments(args):
             'MaskedMultiHeadAttention',
             'Decoder',
             'Encoder',
-            'EncoderBlock'))
+            'EncoderBlock',
+            'Transformer'))
 
     parser.add_argument(
         '--tensorboard', help="Write Tensor Event to torchlogs", action='store_true')
@@ -96,7 +99,7 @@ def main(args):
         # Testing out the Positional Encoding
 
         print("Testing out Positional Embeddings")
-        model = PositionalEncoding(0, d_model, seq_len).to(device)
+        model = PositionalEncoding(0, d_model, 100).to(device)
 
         print(f"Position Embedding Mask: {model.positional_encoding_mask}")
 
@@ -207,18 +210,44 @@ def main(args):
         print(f"After Encoder Block: {decoder_output}")
         print(f"Shape of Encoder Output: {decoder_output.shape}")
 
+    elif block == "Transformer":
+
+        # Testing out Transformer
+
+        transformer_input = torch.tensor([[1, 5]]).to(device)
+        transformer_output = torch.tensor([[3, 8, 7]]).to(device)
+
+        print("Testing out End-to-End Transformer")
+        model = TransformerModel(
+            input_vocab_size=10, output_vocab_size=10, d_model=4, num_attention_heads=2,
+            feed_forward_hidden_dimension=8, num_encoder_stacks=2, num_decoder_stacks=2).to(device)
+
+        # Let's create a dummy encoding
+
+        model.eval()
+        model_output = model(transformer_input, transformer_output)
+
+        print(f"After Transformer: {model_output}")
+        print(f"After Transformer Shape: {model_output.shape}")
+
+        from torch.utils.tensorboard import SummaryWriter
+
+        writer = SummaryWriter("../torchlogs/")
+        writer.add_graph(model, [transformer_input, transformer_output])
+        writer.close()
+
     else:
 
         model = None
         print(f"Block {block} is not a block that has yet been implemented.")
 
-    if model is not None and write_tensorboard:
-
-        from torch.utils.tensorboard import SummaryWriter
-
-        writer = SummaryWriter("../torchlogs/")
-        writer.add_graph(model, dataset)
-        writer.close()
+    # if model is not None and write_tensorboard:
+    #
+    #     from torch.utils.tensorboard import SummaryWriter
+    #
+    #     writer = SummaryWriter("../torchlogs/")
+    #     writer.add_graph(model, dataset,)
+    #     writer.close()
 
 
 if __name__ == '__main__':
