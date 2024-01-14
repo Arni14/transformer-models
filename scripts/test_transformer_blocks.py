@@ -94,6 +94,8 @@ def main(args):
     print(f"Dataset Device: {dataset.device}")
     print(f"Initial Tensor: {dataset}\n")
 
+    params = dataset
+
     if block == "PositionalEncoding":
 
         # Testing out the Positional Encoding
@@ -226,28 +228,23 @@ def main(args):
 
         model.eval()
         model_output = model(transformer_input, transformer_output)
+        params = [transformer_input, transformer_output]
 
         print(f"After Transformer: {model_output}")
         print(f"After Transformer Shape: {model_output.shape}")
-
-        from torch.utils.tensorboard import SummaryWriter
-
-        writer = SummaryWriter("../torchlogs/")
-        writer.add_graph(model, [transformer_input, transformer_output])
-        writer.close()
 
     else:
 
         model = None
         print(f"Block {block} is not a block that has yet been implemented.")
 
-    # if model is not None and write_tensorboard:
-    #
-    #     from torch.utils.tensorboard import SummaryWriter
-    #
-    #     writer = SummaryWriter("../torchlogs/")
-    #     writer.add_graph(model, dataset,)
-    #     writer.close()
+    if model is not None and write_tensorboard:
+
+        from torch.utils.tensorboard import SummaryWriter
+
+        writer = SummaryWriter("../torchlogs/")
+        writer.add_graph(model, params)
+        writer.close()
 
 
 if __name__ == '__main__':
