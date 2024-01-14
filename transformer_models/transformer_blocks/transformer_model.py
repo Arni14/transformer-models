@@ -52,7 +52,7 @@ class TransformerModel(nn.Module):
         else:
             return probabilities
 
-    def forward(self, input_sequence, output_sequence):
+    def forward(self, input_sequence, output_sequence, output_probabilities=False):
 
         # First, we will take our input sequence (of the form (batch_size, seq_len)) and encode it
         encoding = self.encode(input_sequence)
@@ -64,7 +64,8 @@ class TransformerModel(nn.Module):
         # Now, let's predict the most likely token using the softmax
         probabilities = torch.softmax(decoding, dim=-2)
 
-        # Eventually, we will also use this function to actually make a choice (so an argmax policy, beam search, etc.)
-        likely_tokens = self.token_selector(probabilities, self.decode_policy)
+        if output_probabilities:
+            return probabilities
 
-        return likely_tokens
+        # Eventually, we will also use this function to actually make a choice (so an argmax policy, beam search, etc.)
+        return self.token_selector(probabilities, self.decode_policy)
